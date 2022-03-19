@@ -1,6 +1,7 @@
 import math
 from os import stat
 import random as rnd
+from re import T
 import numpy as np
 import helpers as hlp
 
@@ -82,6 +83,13 @@ class Network_Model:
                 s += ' ' + str(n.id) + ', o = ' + str(n.output) + ', b = ' + str(n.bias) + ' |'
             print(s)
     
+    def plot_network_pretty(self):
+        for l in self.layers:
+            s = ''
+            for n in l.neurons:
+                s += '<div style="border-style:outset; border-radius: 1ex; border-color: white; padding: 0.5ex; text-align: center; width: 15ex; float: left; margin: 0.25ex">'+ str(n.id) + '<br>output ' + str(n.output) + '<br>bias ' + str(n.bias) + '</div>'
+            hlp.printmd(s)
+
     def train(self, training_data, mode = 'online', epochs = 10):
         # validation
 
@@ -94,18 +102,28 @@ class Network_Model:
         if epochs < 1 or epochs > 100: epochs = 10
 
         # split training data into training and validation data 70-30
-        # ToDo
+        train_data_x, train_data_y, val_data_x, val_data_y = hlp.split_training_data(training_data, 0.25)
 
-        # propagate
-        # ToDo
+        for i,t in enumerate(train_data_x):
+            print('input: ' + str(t))
 
-        # error vector
-        # ToDo
+            # propagate
+            prediction = self.predict(t)
+            print('pred: ' + str(prediction))
 
-        # backpropagate
-        # ToDo
+            # error vector
+            goal = train_data_y[i]
+            print('goal: ' + str(goal))
+            error = []
+            
+            for j,p in enumerate(prediction):
+                error.append(goal[j] - p)
+            
+            print('error:' + str(error))
+            print('')
 
-
+            # backpropagate
+            # ToDo
 
 
     def predict(self, input):
@@ -124,7 +142,10 @@ class Network_Model:
             for n in l.neurons:
                 n.propagate(self.layers[l.id - 1].neurons, l.weights, l.activation)
     
+        output = []
         for n in self.layers[-1].neurons:
-            print(n.output)
+            output.append(n.output)
+        
+        return output
 
 
