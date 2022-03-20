@@ -19,7 +19,7 @@ class Neuron:
             net_input += n.output * current_layer_weights[n.id[1]][self.id[1]]
             
         net_input -= self.bias
-        self.output = round(self.activate(net_input, current_layer_activation_function), 2) # ToDo: How does the previous activation play a role?
+        self.output = round(self.activate(net_input, current_layer_activation_function), 2)
 
     def activate(self, input, activation):
         match activation:
@@ -40,12 +40,13 @@ class Layer:
         self.id = id
         self.num_of_neurons = num_of_neurons
         self.activation = activation if activation in ['identity', 'relu', 'binary_step', 'sigmoid', 'tanh'] else 'identity'
-
         self.neurons = []
 
+        # add neurons at initialization
         for i in range(self.num_of_neurons):
             self.neurons.append(Neuron((self.id, i), ))
         
+        # if hidden or output layer, add weights
         if self.id > 0:
             self.weights = np.zeros((prev_layer.num_of_neurons, self.num_of_neurons))
             
@@ -121,19 +122,20 @@ class Network_Model:
 
             # error vector
             E_p = []
-            for j,y_i in enumerate(y): E_p.append((t[j] if type(t) == list else t) - y_i)
+            for j,y_i in enumerate(y):
+                E_p.append((t[j] if type(t) == list else t) - y_i)
             print('E_p:' + str(E_p))
 
             # specific error
             sum_square = 0
-            for e in E_p: sum_square += e * e
+            for e in E_p:
+                sum_square += e * e
             Err_p = 1/2 * sum_square
             print('Err_p:' + str(Err_p))
             print('')
 
             # backpropagate
             # ToDo
-
 
     def predict(self, input: list):
         # write input to first layer
@@ -146,7 +148,8 @@ class Network_Model:
         
         # propagate
         for l in self.layers:
-            if l.id == 0: continue # prevent input neurons from propagating
+            if l.id == 0:
+                continue # prevent input neurons from propagating
 
             for n in l.neurons:
                 n.propagate(self.layers[l.id - 1].neurons, l.weights, l.activation)

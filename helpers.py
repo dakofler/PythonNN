@@ -5,8 +5,7 @@ from IPython.display import Markdown, display
 import pandas as pd
 
 def printmd(string):
-    display(Markdown(string))
-    
+    display(Markdown(string)) 
 
 def normalize(df_orig: pd.DataFrame, upper_bound = 1, lower_bound = -1):
 
@@ -32,7 +31,6 @@ def normalize(df_orig: pd.DataFrame, upper_bound = 1, lower_bound = -1):
     data_norm= list(map(list, zip(*data_transposed)))
     df_norm = pd.DataFrame(data_norm, columns = df_not_norm.columns)
     return df_norm
-    
 
 def split_training_val_data(df: pd.DataFrame, percentage_val_data = 0.2):
 
@@ -40,7 +38,6 @@ def split_training_val_data(df: pd.DataFrame, percentage_val_data = 0.2):
     test_df = pd.concat([df,val_df]).drop_duplicates(keep=False)
     
     return test_df, val_df
-
 
 def split_input_output_data(df: pd.DataFrame, x_cols: list[str], y_cols: list[str]):
     x_df = df.copy()
