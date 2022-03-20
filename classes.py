@@ -10,7 +10,7 @@ class Neuron:
     def __init__(self, id):
         self.id = id
         self.output = 0
-        self.bias = 0 if self.id[0] == 0 else round(rnd.random(), 2) # if layer id is 0, it is an input layer
+        self.bias = 0 if self.id[0] == 0 else round((rnd.random() - 0.5) * 2, 2) # if layer id is 0, it is an input layer
     
     def propagate(self, prev_layer_neurons, current_layer_weights, current_layer_activation_function):
         net_input = 0
@@ -87,46 +87,55 @@ class Network_Model:
         for l in self.layers:
             s = ''
             for n in l.neurons:
-                s += '<div style="border-style:outset; border-radius: 1ex; border-color: white; padding: 0.5ex; text-align: center; width: 15ex; float: left; margin: 0.25ex">'+ str(n.id) + '<br>output ' + str(n.output) + '<br>bias ' + str(n.bias) + '</div>'
+                s += '<div style="border-style:outset; border-radius: 1ex; border-color: white; padding: 0.5ex; text-align: center; float: left; margin: 0.25ex; width: fit-content">'+ str(n.id) + '<br>output ' + str(n.output) + '<br>bias ' + str(n.bias) + '</div>'
             hlp.printmd(s)
 
-    def train(self, training_data, mode = 'online', epochs = 10):
-        # validation
-
-        # ToDo: Verify training data (is numeric? is tuple? is not empty?
+    def train(self, train_df_x, train_df_y, val_df_x, val_df_y, mode = 'online', epochs = 10):
+        # ToDo: Validate training data (is numeric? is tuple? is not empty?
         
         if mode not in ['online', 'offline']:
             print('Invalid mode given. Must be "online" or "offline".')
             return
 
-        if epochs < 1 or epochs > 100: epochs = 10
+        # Training
 
-        # split training data into training and validation data 70-30
-        train_data_x, train_data_y, val_data_x, val_data_y = hlp.split_training_data(training_data, 0.25)
+        train_data_x = train_df_x.values.tolist()
+        train_data_y = train_df_y.values.tolist()
 
-        for i,t in enumerate(train_data_x):
-            print('input: ' + str(t))
+        # x ... input vector with components x_i
+        # y ... output vector with components y_i
+        # p ... training sample with components p_i
+        # t ... teaching input with components t_i
+        # E_p ... Error vector for training sample p
 
-            # propagate
-            prediction = self.predict(t)
-            print('pred: ' + str(prediction))
+        for i,p in enumerate(train_data_x):
+            print('p: ' + str(p))
+
+            # output vector
+            y = self.predict(p)
+            print('y: ' + str(y))
+
+            # teaching input
+            t = train_data_y[i]
+            print('t: ' + str(t))
 
             # error vector
-            goal = train_data_y[i]
-            print('goal: ' + str(goal))
-            error = []
-            
-            for j,p in enumerate(prediction):
-                error.append(goal[j] - p)
-            
-            print('error:' + str(error))
+            E_p = []
+            for j,y_i in enumerate(y): E_p.append((t[j] if type(t) == list else t) - y_i)
+            print('E_p:' + str(E_p))
+
+            # specific error
+            sum_square = 0
+            for e in E_p: sum_square += e * e
+            Err_p = 1/2 * sum_square
+            print('Err_p:' + str(Err_p))
             print('')
 
             # backpropagate
             # ToDo
 
 
-    def predict(self, input):
+    def predict(self, input: list):
         # write input to first layer
         if len(input) != len(self.layers[0].neurons):
             print('Number of input values does not match number of input neurons!')
