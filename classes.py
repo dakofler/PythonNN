@@ -109,33 +109,50 @@ class Network_Model:
         # t ... teaching input with components t_i
         # E_p ... Error vector for training sample p
 
-        for i,p in enumerate(train_data_x):
-            print('p: ' + str(p))
+        # return
 
-            # output vector
-            y = self.predict(p)
-            print('y: ' + str(y))
+        for e in range(1, epochs + 1):
+            E_e = 0 # Cumulative error for the epoch
+            for i,p in enumerate(train_data_x):
+                # output vector
+                y = self.predict(p) 
 
-            # teaching input
-            t = train_data_y[i]
-            print('t: ' + str(t))
+                # specific error
+                t = train_data_y[i]
+                E_p = 0
+                temp_sum = 0
+                for j,y_j in enumerate(y):
+                    temp_1 = (y_j - (t[j] if type(t) == list else t))
+                    temp_sum += temp_1 * temp_1
+                E_p = 1/2 * temp_sum
+                E_e += E_p
 
-            # error vector
-            E_p = []
-            for j,y_i in enumerate(y):
-                E_p.append((t[j] if type(t) == list else t) - y_i)
-            print('E_p:' + str(E_p))
+                # backpropagate
+                layers = self.layers.copy()
+                layers.reverse()
 
-            # specific error
-            sum_square = 0
-            for e in E_p:
-                sum_square += e * e
-            Err_p = 1/2 * sum_square
-            print('Err_p:' + str(Err_p))
-            print('')
+                delta_weights = []
 
-            # backpropagate
-            # ToDo
+                for l, layer in enumerate(layers):
+                    if l != 0:
+                        for j, neuron_j in enumerate(layer.neurons):
+                            if l == layers[0].id:
+                                # compute del_j
+                                pass
+                            else:
+                                # compute del_j
+                                pass
+                                
+                            for i, neuron_i in enumerate(layers[l - 1].neurons):
+                                # compute del_w
+                                pass
+
+                for l, layer in enumerate(layers):
+                    if l != 0:
+                        for neuron_i in range(len(layer.neurons)):
+                            for neuron_j in range(len(layer[l - 1].neurons)):
+                                # update weights with del_w
+                                pass
 
     def predict(self, input: list):
         # write input to first layer
