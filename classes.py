@@ -11,48 +11,89 @@ import pandas as pd
 class Neuron:
     def __init__(self, id):
         self.id = id
+
+        self.net = 0
+        self.activation = 0
         self.output = 0 if self.id[1] > 0 else 1 # bias neurons have id 0 and get an output of 1
+
+        self.delta = 0
     
-    def propagate(self, prev_layer, current_layer):
+    def do_update(self, prev_layer, current_layer):
         # input neurons and bias neurons should not propagate
-        if (self.id[0] == 0 or self.id[1] == 0):
-            return
+        if (self.id[0] == 0 or self.id[1] == 0): return False
 
-        net_input = 0
-        prev_neurons = []
-        prev_neurons = prev_layer.neurons.copy()
-        prev_neurons.insert(0,current_layer.bias_neuron)
+        if not self.do_propagate(prev_layer, current_layer): return False
+        if not self.do_activate(current_layer.activation_function): return False
+        if not self.do_output(): return False
 
-        for n in prev_neurons:
-            try:
+    def do_propagate(self, prev_layer, current_layer):
+        try:
+            net_input = 0
+            prev_neurons = []
+            prev_neurons = prev_layer.neurons.copy()
+            prev_neurons.insert(0,current_layer.bias_neuron) # add bias neuron to front of list
+
+            for n in prev_neurons:
                 net_input += n.output * current_layer.weights[n.id[1]][self.id[1] - 1]
-            except:
-                print('Error i = ' + str(self.id) + ' j = ' + str(n.id) + ' w = ' + str(current_layer.weights[n.id[1]][self.id[1] - 1]))
 
-        self.output = round(self.activate(net_input, current_layer.activation), 2)
+            self.net = net_input
+            return True
+        except:
+            return False
 
-    def activate(self, input, activation):
+    def do_activate(self, activation):
         if (self.id[1] == 0):
-            return 1
+            return False
 
-        match activation:
-            case 'identity':
-                return input
-            case 'relu':
-                return max(0, input)
-            case 'binary_step':
-                return 0 if input < 0 else 1
-            case 'sigmoid':
-                return 1 / (1 + math.exp(-input))
-            case 'tanh':
-                return math.tanh(input)
+        try:
+            match activation:
+                case 'identity':
+                    self.activation = hlp.activate_identity(self.net)
+                    return True
+                case 'relu':
+                    self.activation = hlp.activate_relu(self.net)
+                    return True
+                case 'sigmoid':
+                    self.activation = hlp.activate_sigmoid(self.net)
+                    return True 
+                case 'tanh':
+                    self.activation = hlp.activate_tanh(self.net)
+                    return True
+        except:
+            return False
+
+    def do_output(self):
+        if (self.id[1] == 0):
+            return False
+
+        try:
+            self.output = self.activation
+        except:
+            return False
+
+    def do_activate_der(self, activation_function):
+        try:
+            match activation_function:
+                case 'identity':
+                    return hlp.activate_identity_der(self.net)
+                case 'relu':
+                    return hlp.activate_relu_der(self.net)
+                case 'sigmoid':
+                    return hlp.activate_sigmoid_der(self.net) 
+                case 'tanh':
+                    return hlp.activate_tanh_der(self.net)
+        except:
+            return False
+
+    def set_delta(self, delta):
+        self.delta = delta
 
 
 class Layer:
-    def __init__(self, id, num_of_neurons, activation = 'identity', prev_layer = None):
+    def __init__(self, id, num_of_neurons, activation_function = 'identity', prev_layer = None):
         self.id = id
         self.num_of_neurons = num_of_neurons
-        self.activation = activation if activation in ['identity', 'relu', 'binary_step', 'sigmoid', 'tanh'] else 'identity'
+        self.activation_function = activation_function if activation_function in ['identity', 'relu', 'sigmoid', 'tanh'] else 'identity'
         self.neurons = []
 
         # add bias neuron
@@ -71,10 +112,7 @@ class Layer:
             
             for i in range(len(self.weights)):
                 for j in range(len(self.weights[0])):
-                    if i == 0:
-                        self.weights[i][j] = -round(rnd.random(), 2) # negative weights for bias neurons
-                    else:
-                        self.weights[i][j] = round(rnd.random(), 2) # positive weights for normal neurons
+                    self.weights[i][j] = (rnd.random() - 0.5) * 2
         else:
             self.weights = []
 
@@ -90,63 +128,128 @@ class Network_Model:
         self.id = id
         self.layers = []
 
-    def add_layer(self, num_of_neurons, activation = 'identity'):
+    def add_layer(self, num_of_neurons, activation_function = 'identity'):
         if num_of_neurons < 1:
             print('Number of neurons has to be larger or equal to 0!')
             return
         
-        if activation not in ['identity', 'relu', 'binary_step', 'sigmoid', 'tanh']:
-            print(f'Activation function "{activation}" does not exist!')
+        if activation_function not in ['identity', 'relu', 'sigmoid', 'tanh']:
+            print(f'Activation function "{activation_function}" does not exist!')
             return
 
         if len(self.layers) > 0:
-            self.layers.append(Layer(len(self.layers), num_of_neurons, activation, self.layers[-1]))
+            self.layers.append(Layer(len(self.layers), num_of_neurons, activation_function, self.layers[-1]))
         else:
-            self.layers.append(Layer(len(self.layers), num_of_neurons, activation))
+            self.layers.append(Layer(len(self.layers), num_of_neurons, activation_function))
     
     def plot_network(self):
         for l in self.layers:
             s = ''
             for n in l.neurons:
-                s += '<div style="border-style:outset; border-radius: 1ex; border-color: white; padding: 0.5ex; text-align: center; float: left; margin: 0.25ex; width: fit-content">'+ str(n.id) + '<br>output ' + str(n.output) + '</div>'
+                s += '<div style="border-style:outset; border-radius: 1ex; border-color: white; padding: 0.5ex; text-align: center; float: left; margin: 0.25ex; width: fit-content">'+ str(n.id) + '<br>net ' + str(n.net) + '<br>act ' + str(n.activation) + '<br>out ' + str(n.output) + '</div>'
             hlp.printmd(s)
 
-    def train(self, train_df_x, train_df_y, val_df_x, val_df_y, mode = 'online', epochs = 10):
-        # ToDo: Validate training data (is numeric? is tuple? is not empty?
-        
-        if mode not in ['online', 'offline']:
-            print('Invalid mode given. Must be "online" or "offline".')
-            return
-
-        # Training
+    def train(self, train_df_x, train_df_y, mode = 'online', epochs = 10, learning_rate = 0.5, debug = False):
         train_data_x = train_df_x.values.tolist()
         train_data_y = train_df_y.values.tolist()
 
-        # x ... input vector with components x_i
-        # y ... output vector with components y_i
-        # p ... training sample with components p_i
-        # t ... teaching input with components t_i
-        # E_p ... Error vector for training sample p
-
+        # iterate over epochs
+        Err = []
         for e in range(1, epochs + 1):
-            E_e = 0 # Cumulative error for the epoch
+            Err_e = 0
+            
+            if debug: print('epoch' + str(e))
+
+            # iterate of all training sets
             for i,p in enumerate(train_data_x):
+                if debug: print('training set ' + str(i))
+
                 # output vector
-                y = self.predict(p) 
+                y = self.predict(p)
 
                 # specific error
                 t = train_data_y[i]
-                E_p = 0 # Error for a specific training set
+                Err_p = 0
+                E_p = []
                 temp_sum = 0
                 for j,y_j in enumerate(y):
-                    temp_1 = (y_j - (t[j] if type(t) == list else t))
-                    temp_sum += temp_1 * temp_1
-                E_p = 1/2 * temp_sum
-                E_e += E_p
+                    E_p.append((t[j] if type(t) == list else t) - y_j)
+                temp_sum = 0
+                for e in E_p:
+                    temp_sum += e * e
+                Err_p = 1/2 * temp_sum
+                Err_e += Err_p
+
+                if debug:
+                    print('Error:')
+                    print('x: ' + str(p))
+                    print('y: ' + str(y))
+                    print('t: ' + str(t))
+                    print('E_p: ' + str(E_p))
+                    print('Err_p: ' + str(Err_p))
+                    print('')
 
                 # backpropagate
-                layers = self.layers.copy()
-                layers.reverse()
+                delta_w = []
+
+                for layer in range(len(self.layers) - 1, 0, -1):
+                    is_output_layer = layer == len(self.layers) - 1
+
+                    # current layer neurons
+                    neurons_h = self.layers[layer].neurons
+
+                    # previous layer neurons
+                    neurons_k = self.layers[layer - 1].neurons.copy()
+                    neurons_k.insert(0, self.layers[layer].bias_neuron)
+
+                    # following layer neurons, weights
+                    neurons_l = None if is_output_layer else self.layers[layer + 1].neurons
+                    weights_l = None if is_output_layer else self.layers[layer + 1].weights
+                    
+                    act_func = self.layers[layer].activation_function
+                    delta_w.insert(0,[])
+
+                    for h in neurons_h:
+                        delta_w[0].append([])
+                        act_der = h.do_activate_der(act_func)
+                        for k in neurons_k:
+                            del_h = 0
+
+                            # del_h for output neurons
+                            if is_output_layer:
+                                del_h = act_der * E_p[h.id[1] - 1]
+
+                            # del_h for hidden neurons
+                            else:
+                                for l in neurons_l:
+                                    del_h += l.delta * weights_l[h.id[1]][l.id[1] - 1]
+                                del_h *= act_der
+                                
+                            h.set_delta(del_h)
+                            w = learning_rate * k.output * del_h
+                            delta_w[0][-1].append(w)
+
+                if debug:
+                    for i,l in enumerate(self.layers):
+                        print(f'Layer {i} weight change')
+                        if i != 0:
+                            print('Current weights') 
+                            print(l.get_weights())
+                            print('Weight changes') 
+                            delta_i_t = list(map(list, zip(*delta_w[i - 1])))
+                            print(pd.DataFrame(delta_i_t))
+                        print('')
+                
+                # update weights
+                for i,l in enumerate(self.layers):
+                    if i != 0:
+                        delta_i_t = list(map(list, zip(*delta_w[i - 1])))
+                        for k in range(len(l.weights)):
+                            for h in range(len(l.weights[0])):
+                                l.weights[k][h] = l.weights[k][h] + delta_i_t[k][h]
+
+            Err.append(Err_e)
+        return Err
 
     def predict(self, input: list):
         # write input to first layer
@@ -162,12 +265,10 @@ class Network_Model:
         for l in self.layers:
             if l.id != 0:
                 for n in l.neurons:
-                    n.propagate(self.layers[l.id - 1], l)
+                    n.do_update(self.layers[l.id - 1], l)
     
         output = []
         for n in self.layers[-1].neurons:
             output.append(n.output)
         
         return output
-
-
