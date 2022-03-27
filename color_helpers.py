@@ -1,4 +1,4 @@
-import helpers as hlp
+from library import helpers as hlp
 import math
 
 def plot_color(input):

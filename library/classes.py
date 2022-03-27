@@ -4,7 +4,7 @@ from os import stat
 import random as rnd
 from re import T
 import numpy as np
-import helpers as hlp
+from library import helpers as hlp
 import pandas as pd
 
 
@@ -149,18 +149,23 @@ class Network_Model:
                 s += '<div style="border-style:outset; border-radius: 1ex; border-color: white; padding: 0.5ex; text-align: center; float: left; margin: 0.25ex; width: fit-content">'+ str(n.id) + '<br>net ' + str(n.net) + '<br>act ' + str(n.activation) + '<br>out ' + str(n.output) + '</div>'
             hlp.printmd(s)
 
-    def train(self, train_df_x, train_df_y, mode = 'online', epochs = 10, learning_rate = 0.5, debug = False):
+    def train(self, train_df_x, train_df_y, mode = 'online', epochs = 10, learning_rate = 0.5, shuffle = False, debug = False):
         train_data_x = train_df_x.values.tolist()
         train_data_y = train_df_y.values.tolist()
 
-        # iterate over epochs
+        #region shuffle training set
+        # 
+        # ToDo
+        #endregion
+
+        #region iterate over epochs
         Err = []
         for e in range(1, epochs + 1):
             Err_e = 0
             
             if debug: print('epoch' + str(e))
 
-            # iterate of all training sets
+            #region iterate of all training sets
             for i,p in enumerate(train_data_x):
                 if debug: print('training set ' + str(i))
 
@@ -247,8 +252,10 @@ class Network_Model:
                         for k in range(len(l.weights)):
                             for h in range(len(l.weights[0])):
                                 l.weights[k][h] = l.weights[k][h] + delta_i_t[k][h]
-
+            #endregion
             Err.append(Err_e)
+        #endregion
+        
         return Err
 
     def predict(self, input: list):
