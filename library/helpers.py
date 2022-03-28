@@ -3,9 +3,8 @@ import random as rnd
 import math
 from IPython.display import Markdown, display
 import pandas as pd
+import matplotlib.pyplot as plt
 
-def printmd(string):
-    display(Markdown(string)) 
 
 # data preprocessing
 def normalize(df_orig: pd.DataFrame, min_val, max_val, lower_bound = -1, upper_bound = 1):
@@ -70,3 +69,16 @@ def activate_sigmoid_der(value):
 
 def activate_tanh_der(value):
     return 1 - math.tanh(value) *  math.tanh(value) #https://socratic.org/questions/what-is-the-derivative-of-tanh-x
+
+
+# visualization
+def plot_learning_curve(data, xlabel, ylabel, title):
+    fig, ax = plt.subplots()
+    ax.plot(data, color='black')
+    ax.set(xlabel=xlabel, ylabel=ylabel,title=title)
+    ax.grid()
+    plt.ylim([0,60])
+    plt.show()
+
+def printmd(string):
+    display(Markdown(string)) 
