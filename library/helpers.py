@@ -1,9 +1,9 @@
-from cmath import inf
 import random as rnd
 import math
 from IPython.display import Markdown, display
 import pandas as pd
 import matplotlib.pyplot as plt
+import plotly.express as px
 
 
 # data preprocessing
@@ -73,12 +73,10 @@ def activate_tanh_der(value):
 
 # visualization
 def plot_learning_curve(data, xlabel, ylabel, title):
-    fig, ax = plt.subplots()
-    ax.plot(data, color='black')
-    ax.set(xlabel=xlabel, ylabel=ylabel,title=title)
-    ax.grid()
-    plt.ylim([0,60])
-    plt.show()
+    epoch = list(range(1, len(data) + 1))
+    df = pd.DataFrame({xlabel : epoch, ylabel : data})
+    fig = px.line(df, x=xlabel, y=ylabel, title=title)
+    fig.show()
 
 def printmd(string):
     display(Markdown(string)) 

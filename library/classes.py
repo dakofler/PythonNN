@@ -149,50 +149,45 @@ class Network_Model:
                 s += '<div style="border-style:outset; border-radius: 1ex; border-color: white; padding: 0.5ex; text-align: center; float: left; margin: 0.25ex; width: fit-content">'+ str(n.id) + '<br>net ' + str(n.net) + '<br>act ' + str(n.activation) + '<br>out ' + str(n.output) + '</div>'
             hlp.printmd(s)
 
-    def train(self, train_df_x, train_df_y, mode = 'online', epochs = 10, learning_rate = 0.5, shuffle = False, debug = False):
-        train_data_x = train_df_x.values.tolist()
+    def train(self, train_df_x, train_df_y, mode = 'online', epochs = 10, default_learning_rate = 0.5, adaptive_learning_rate = False, shuffle = False, debug = False):
+        train_data_x_orig = train_df_x.values.tolist()
         train_data_y = train_df_y.values.tolist()
 
-        #region shuffle training set
-        # 
-        # ToDo
-        #endregion
+        learning_rate = default_learning_rate
 
         #region iterate over epochs
         Err = []
-        for e in range(1, epochs + 1):
+        for epoch in range(1, epochs + 1):
             Err_e = 0
-            
-            if debug: print('epoch' + str(e))
+
+            #region shuffle training set
+            train_data_x = train_data_x_orig.copy()
+
+            if shuffle:
+                train_data_x = train_data_x_orig.copy()
+                rnd.shuffle(train_data_x)
+
+            #endregion
 
             #region iterate of all training sets
             for i,p in enumerate(train_data_x):
-                if debug: print('training set ' + str(i))
-
                 # output vector
                 y = self.predict(p)
 
                 # specific error
-                t = train_data_y[i]
-                Err_p = 0
-                E_p = []
+                t = train_data_y[train_data_x_orig.index(p)]
+                Err_p = 0 # root mean square error
+                E_p = [] #error vector
                 temp_sum = 0
+
                 for j,y_j in enumerate(y):
                     E_p.append((t[j] if type(t) == list else t) - y_j)
                 temp_sum = 0
                 for e in E_p:
                     temp_sum += e * e
                 Err_p = 1/2 * temp_sum
-                Err_e += Err_p
 
-                if debug:
-                    print('Error:')
-                    print('x: ' + str(p))
-                    print('y: ' + str(y))
-                    print('t: ' + str(t))
-                    print('E_p: ' + str(E_p))
-                    print('Err_p: ' + str(Err_p))
-                    print('')
+                Err_e += Err_p
 
                 # backpropagate
                 delta_w = []
@@ -234,17 +229,6 @@ class Network_Model:
                             w = learning_rate * k.output * del_h
                             delta_w[0][-1].append(w)
 
-                if debug:
-                    for i,l in enumerate(self.layers):
-                        print(f'Layer {i} weight change')
-                        if i != 0:
-                            print('Current weights') 
-                            print(l.get_weights())
-                            print('Weight changes') 
-                            delta_i_t = list(map(list, zip(*delta_w[i - 1])))
-                            print(pd.DataFrame(delta_i_t))
-                        print('')
-                
                 # update weights
                 for i,l in enumerate(self.layers):
                     if i != 0:
@@ -253,7 +237,18 @@ class Network_Model:
                             for h in range(len(l.weights[0])):
                                 l.weights[k][h] = l.weights[k][h] + delta_i_t[k][h]
             #endregion
+
+            Err_e = 1 / len(train_data_x) * Err_e #average Error of all training sets per epoch
             Err.append(Err_e)
+
+            if adaptive_learning_rate:
+                if len(Err) > 1:
+                    if Err[-1] > Err[-2]:
+                        learning_rate *= 0.7
+                    else:
+                        learning_rate *= 1.3
+        
+            if debug: print(f'epoch = {epoch} | error = {Err_e} | learning rate = {learning_rate}')
         #endregion
         
         return Err
