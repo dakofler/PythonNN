@@ -19,6 +19,7 @@ class Neuron:
         self.delta = 0
     
     def do_update(self, prev_layer, current_layer):
+        """Updates a neurons output value by propagating and activating."""
         # input neurons and bias neurons should not propagate
         if (self.id[0] == 0 or self.id[1] == 0): return False
 
@@ -27,6 +28,7 @@ class Neuron:
         if not self.do_output(): return False
 
     def do_propagate(self, prev_layer, current_layer):
+        """Propagates and computes the net input."""
         try:
             net_input = 0
             prev_neurons = []
@@ -42,6 +44,7 @@ class Neuron:
             return False
 
     def do_activate(self, activation):
+        """Computes the activation value using the net input and the layers activation function."""
         if (self.id[1] == 0):
             return False
 
@@ -63,6 +66,7 @@ class Neuron:
             return False
 
     def do_output(self):
+        """Computes the neuron's output using it's activation value."""
         if (self.id[1] == 0):
             return False
 
@@ -86,6 +90,7 @@ class Neuron:
             return False
 
     def set_delta(self, delta):
+        """Sets the delta value for a neuron."""
         self.delta = delta
 
 
@@ -117,9 +122,11 @@ class Layer:
             self.weights = []
 
     def add_neuron(self, output):
+        """Adds a neuron to a layer."""
         self.neurons.append(Neuron((self.id, len(self.neurons + 1))))
 
     def get_weights(self):
+        """Returns the weights of a layer as a dataframe."""
         return pd.DataFrame(self.weights)
 
 
@@ -129,6 +136,7 @@ class Network_Model:
         self.layers = []
 
     def add_layer(self, num_of_neurons, activation_function = 'identity'):
+        """Adds a new layer to the model and fills it with neurons."""
         if num_of_neurons < 1:
             print('Number of neurons has to be larger or equal to 0!')
             return
@@ -143,13 +151,15 @@ class Network_Model:
             self.layers.append(Layer(len(self.layers), num_of_neurons, activation_function))
     
     def plot_network(self):
+        """Visualizes layers and neurons."""
         for l in self.layers:
             s = ''
             for n in l.neurons:
                 s += '<div style="border-style:outset; border-radius: 1ex; border-color: white; padding: 0.5ex; text-align: center; float: left; margin: 0.25ex; width: fit-content">'+ str(n.id) + '<br>net ' + str(n.net) + '<br>act ' + str(n.activation) + '<br>out ' + str(n.output) + '</div>'
             hlp.printmd(s)
 
-    def train(self, train_df_x, train_df_y, mode = 'online', epochs = 10, default_learning_rate = 0.5, adaptive_learning_rate = False, shuffle = False, debug = False):
+    def train(self, train_df_x, train_df_y, mode = 'online', epochs = 100, default_learning_rate = 0.5, adaptive_learning_rate = False, shuffle = False, debug = False):
+        """Trains the model using normalized training data."""
         train_data_x_orig = train_df_x.values.tolist()
         train_data_y = train_df_y.values.tolist()
 
@@ -254,6 +264,7 @@ class Network_Model:
         return Err
 
     def predict(self, input: list):
+        """Computes a model output based on a given input."""
         # write input to first layer
         if len(input) != len(self.layers[0].neurons):
             print('Number of input values does not match number of input neurons!')
