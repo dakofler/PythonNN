@@ -158,17 +158,19 @@ class Network_Model:
                 s += '<div style="border-style:outset; border-radius: 1ex; border-color: white; padding: 0.5ex; text-align: center; float: left; margin: 0.25ex; width: fit-content">'+ str(n.id) + '<br>net ' + str(n.net) + '<br>act ' + str(n.activation) + '<br>out ' + str(n.output) + '</div>'
             hlp.printmd(s)
 
-    def train(self, train_df_x, train_df_y, mode = 'online', epochs = 100, default_learning_rate = 0.5, adaptive_learning_rate = False, shuffle = False, debug = False):
+    def train(self, train_df_x, train_df_y, mode = 'online', epochs = 100, default_learning_rate = 0.5, learning_rate_p = 1, learning_rate_n = 1, shuffle = False, debug = False):
         """Trains the model using normalized training data."""
+
         train_data_x_orig = train_df_x.values.tolist()
-        train_data_y = train_df_y.values.tolist()
+        train_data_y_orig = train_df_y.values.tolist()
 
         learning_rate = default_learning_rate
 
         #region iterate over epochs
         Err = []
+        Err_e = []
         for epoch in range(1, epochs + 1):
-            Err_e = 0
+            Err_e.clear()
 
             #region shuffle training set
             train_data_x = train_data_x_orig.copy()
@@ -184,20 +186,17 @@ class Network_Model:
                 # output vector
                 y = self.predict(p)
 
-                # specific error
-                t = train_data_y[train_data_x_orig.index(p)]
-                Err_p = 0 # root mean square error
-                E_p = [] #error vector
-                temp_sum = 0
-
+                # training input
+                t = train_data_y_orig[train_data_x_orig.index(p)]
+                
+                # error vector
+                E_p = [] 
                 for j,y_j in enumerate(y):
                     E_p.append((t[j] if type(t) == list else t) - y_j)
-                temp_sum = 0
-                for e in E_p:
-                    temp_sum += e * e
-                Err_p = 1/2 * temp_sum
 
-                Err_e += Err_p
+                # specific error
+                Err_p = 1/2 * sum([k*l for k,l in zip(E_p,E_p)])
+                Err_e.append(Err_p)
 
                 # backpropagate
                 delta_w = []
@@ -222,21 +221,24 @@ class Network_Model:
                     for h in neurons_h:
                         delta_w[0].append([])
                         act_der = h.do_activate_der(act_func)
+                        delta_h = 0
+
+                        # delta_h for output neurons
+                        if is_output_layer:
+                            delta_h = act_der * E_p[h.id[1] - 1]
+
+                        # delta_h for hidden neurons
+                        else:
+                            delta_sum = 0
+                            for l in neurons_l:
+                                w_h_l = weights_l[h.id[1]][l.id[1] - 1]
+                                delta_sum += (l.delta * w_h_l)
+                            delta_h = act_der * delta_sum
+
+                        h.set_delta(delta_h)
+
                         for k in neurons_k:
-                            del_h = 0
-
-                            # del_h for output neurons
-                            if is_output_layer:
-                                del_h = act_der * E_p[h.id[1] - 1]
-
-                            # del_h for hidden neurons
-                            else:
-                                for l in neurons_l:
-                                    del_h += l.delta * weights_l[h.id[1]][l.id[1] - 1]
-                                del_h *= act_der
-                                
-                            h.set_delta(del_h)
-                            w = learning_rate * k.output * del_h
+                            w = learning_rate * k.output * delta_h
                             delta_w[0][-1].append(w)
 
                 # update weights
@@ -247,21 +249,30 @@ class Network_Model:
                             for h in range(len(l.weights[0])):
                                 l.weights[k][h] = l.weights[k][h] + delta_i_t[k][h]
             #endregion
+            
+            # average Error of all training sets per epoch
+            Err_e_avg = sum(Err_e) / len(Err_e)
 
-            Err_e = 1 / len(train_data_x) * Err_e #average Error of all training sets per epoch
-            Err.append(Err_e)
+            # adapt learning rate based on error
+            if len(Err) >= 1:
+                if Err_e_avg > Err[-1]:
+                    learning_rate *= learning_rate_n
+                else:
+                    learning_rate *= learning_rate_p
 
-            if adaptive_learning_rate:
-                if len(Err) > 1:
-                    if Err[-1] > Err[-2]:
-                        learning_rate *= 0.7
-                    else:
-                        learning_rate *= 1.3
-        
-            if debug: print(f'epoch = {epoch} | error = {Err_e} | learning rate = {learning_rate}')
+            Err.append(Err_e_avg)
+
+            if debug: print(f'epoch = {epoch} | error = {Err_e_avg} | learning rate = {learning_rate}')
         #endregion
         
         return Err
+
+    def update(self):
+        """Updates each neuron in the network."""
+        for l in self.layers:
+            if l.id != 0:
+                for n in l.neurons:
+                    n.do_update(self.layers[l.id - 1], l)
 
     def predict(self, input: list):
         """Computes a model output based on a given input."""
@@ -274,11 +285,7 @@ class Network_Model:
         for i, n in enumerate(self.layers[0].neurons):
             n.output = input[i]
         
-        # propagate
-        for l in self.layers:
-            if l.id != 0:
-                for n in l.neurons:
-                    n.do_update(self.layers[l.id - 1], l)
+        self.update()
     
         output = []
         for n in self.layers[-1].neurons:
