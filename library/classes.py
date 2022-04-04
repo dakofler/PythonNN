@@ -158,7 +158,15 @@ class Network_Model:
                 s += '<div style="border-style:outset; border-radius: 1ex; border-color: white; padding: 0.5ex; text-align: center; float: left; margin: 0.25ex; width: fit-content">'+ str(n.id) + '<br>net ' + str(n.net) + '<br>act ' + str(n.activation) + '<br>out ' + str(n.output) + '</div>'
             hlp.printmd(s)
 
-    def train(self, train_df_x, train_df_y, mode = 'online', epochs = 100, default_learning_rate = 0.5, learning_rate_p = 1, learning_rate_n = 1, shuffle = False, debug = False):
+    def train(self,
+        train_df_x,
+        train_df_y,
+        mode = 'online',
+        epochs = 100,
+        default_learning_rate = 0.5, learning_rate_p = 1, learning_rate_n = 1,
+        momentum_factor = 0,
+        shuffle = False,
+        debug = False):
         """Trains the model using normalized training data."""
 
         train_data_x_orig = train_df_x.values.tolist()
@@ -238,7 +246,11 @@ class Network_Model:
                         h.set_delta(delta_h)
 
                         for k in neurons_k:
-                            w = learning_rate * k.output * delta_h
+                            w = 0
+                            if i > 0:
+                                w = learning_rate * k.output * delta_h + momentum_factor * delta_w_p[layer - 1][h.id[1] - 1][k.id[1]]
+                            else:
+                                w = learning_rate * k.output * delta_h
                             delta_w[0][-1].append(w)
 
                 # update weights
@@ -248,6 +260,8 @@ class Network_Model:
                         for k in range(len(l.weights)):
                             for h in range(len(l.weights[0])):
                                 l.weights[k][h] = l.weights[k][h] + delta_i_t[k][h]
+                
+                delta_w_p = delta_w.copy()
             #endregion
             
             # average Error of all training sets per epoch
