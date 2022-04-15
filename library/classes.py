@@ -6,6 +6,8 @@ from re import T
 import numpy as np
 from library import helpers as hlp
 import pandas as pd
+import networkx as nx
+import plotly.graph_objects as go
 
 
 class Neuron:
@@ -157,6 +159,125 @@ class Network_Model:
             for n in l.neurons:
                 s += '<div style="border-style:outset; border-radius: 1ex; border-color: white; padding: 0.5ex; text-align: center; float: left; margin: 0.25ex; width: fit-content">'+ str(n.id) + '<br>net ' + str(n.net) + '<br>act ' + str(n.activation) + '<br>out ' + str(n.output) + '</div>'
             hlp.printmd(s)
+
+    def plot_network_pretty(self, show_nodes=True, show_edges=True):
+        """Visualizes the network using NetworkX and Plotly"""
+
+        # create list of all neurons
+        neurons = []
+        for l in self.layers:
+            for n in l.neurons:
+                neurons.append(n)
+
+        # instanciate graph
+        graph = nx.Graph()
+
+        # add neurons as nodes
+        for n in neurons:
+            graph.add_node(n.id)
+
+        #calculate node positions
+        plot_width = 200 + len(self.layers) * 250
+        temp = [n.id[1] for n in neurons]
+        plot_height = 200 + max(temp) * 50 - 10
+
+        pos = {}
+        d_x = plot_width / len(self.layers)
+        d_y = [plot_height / len(l.neurons) for l in self.layers]
+
+        for n in neurons:
+            current_layer_id = n.id[0]
+            current_neuron_id = n.id[1]
+            x = d_x / 2 + current_layer_id * d_x
+            y = plot_height - d_y[current_layer_id] / 2 - (current_neuron_id - 1) * d_y[current_layer_id]
+
+            pos[n.id] = [x, y]
+        
+        # add edges
+        for l in self.layers:
+            if l.id != 0:
+                for n in l.neurons:
+                    for n_k in self.layers[l.id - 1].neurons:
+                        graph.add_edge(n_k.id, n.id)
+
+        if (not show_nodes and not show_edges): return
+
+        if (show_edges):
+            edge_x = []
+            edge_y = []
+
+            for edge in graph.edges():
+                x0, y0 = pos[edge[0]]
+                x1, y1 = pos[edge[1]]
+
+                edge_x.append(x0)
+                edge_x.append(x1)
+                edge_x.append(None)
+                edge_y.append(y0)
+                edge_y.append(y1)
+                edge_y.append(None)
+
+        if (show_nodes):
+            node_x = []
+            node_y = []
+            node_hover_text = []
+            node_text = []
+            node_adjacencies = []
+
+            for node, adjacencies in enumerate(graph.adjacency()):
+                node_adjacencies.append(len(adjacencies[1]))
+
+            for i, node in enumerate(graph.nodes()):
+                x, y = pos[node]
+                node_x.append(x)
+                node_y.append(y)
+                node_text.append(node)
+                node_hover_text.append(f'net={neurons[i].net}<br>activation={neurons[i].activation}<br>output={neurons[i].output}')
+
+        layout=go.Layout(
+            showlegend=False,
+            hovermode='closest',
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(b=20,l=5,r=5,t=40),
+            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            width=plot_width,
+            height=plot_height
+        )
+
+        data = []
+
+        if (show_edges):
+            edge_trace = go.Scatter(
+                x=edge_x,
+                y=edge_y,
+                line=dict(width=1, color='#888'),
+                hoverinfo='none',
+                mode='lines'
+            )
+            data.append(edge_trace)
+
+        if (show_nodes):
+            node_trace = go.Scatter(
+                x=node_x,
+                y=node_y,
+                text=node_text,
+                textfont=dict(color='#000000'),
+                mode='markers+text',
+                hoverinfo='text',
+                hovertext=node_hover_text,
+                marker=dict(
+                    color='white',
+                    size=45,
+                    opacity=1,
+                    line=dict(width=0.5, color='black')
+                )
+            )
+            data.append(node_trace)
+        
+        fig = go.Figure(data=data, layout=layout)
+        fig.show()
 
     def train(self,
         train_df_x,
