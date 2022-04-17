@@ -62,14 +62,14 @@ def activate_identity_der(value):
     return 1
 
 def activate_relu_der(value): # undefined at 0
-    return 0 if value < 0 else 1
+    return 0 + 0.1 if value < 0 else 1
     
 def activate_sigmoid_der(value):
     sigm = 1 / (1 + math.exp(-value))
-    return sigm * (1 - sigm) # https://towardsdatascience.com/derivative-of-the-sigmoid-function-536880cf918e
+    return sigm * (1 - sigm) + 0.1 # https://towardsdatascience.com/derivative-of-the-sigmoid-function-536880cf918e
 
 def activate_tanh_der(value):
-    return 1 - math.tanh(value) *  math.tanh(value) #https://socratic.org/questions/what-is-the-derivative-of-tanh-x
+    return 1 - math.tanh(value) *  math.tanh(value) + 0.1 #https://socratic.org/questions/what-is-the-derivative-of-tanh-x
 
 
 # visualization

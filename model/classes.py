@@ -1,10 +1,7 @@
-import imp
-import math
-from os import stat
 import random as rnd
 from re import T
 import numpy as np
-from library import helpers as hlp
+from model import helpers as hlp
 import pandas as pd
 import networkx as nx
 import plotly.graph_objects as go
@@ -151,16 +148,8 @@ class Network_Model:
             self.layers.append(Layer(len(self.layers), num_of_neurons, activation_function, self.layers[-1]))
         else:
             self.layers.append(Layer(len(self.layers), num_of_neurons, activation_function))
-    
-    def plot_network(self):
-        """Visualizes layers and neurons."""
-        for l in self.layers:
-            s = ''
-            for n in l.neurons:
-                s += '<div style="border-style:outset; border-radius: 1ex; border-color: white; padding: 0.5ex; text-align: center; float: left; margin: 0.25ex; width: fit-content">'+ str(n.id) + '<br>net ' + str(n.net) + '<br>act ' + str(n.activation) + '<br>out ' + str(n.output) + '</div>'
-            hlp.printmd(s)
 
-    def plot_network_pretty(self, show_nodes=True, show_edges=True):
+    def plot_network(self, show_nodes=True, show_edges=True):
         """Visualizes the network using NetworkX and Plotly"""
 
         # create list of all neurons
@@ -295,23 +284,22 @@ class Network_Model:
 
         learning_rate = default_learning_rate
 
-        #region iterate over epochs
+        # iterate over epochs
         Err = []
         Err_e = []
         for epoch in range(1, epochs + 1):
             Err_e.clear()
 
-            #region shuffle training set
+            # shuffle training set
             train_data_x = train_data_x_orig.copy()
 
             if shuffle:
                 train_data_x = train_data_x_orig.copy()
                 rnd.shuffle(train_data_x)
 
-            #endregion
-
-            #region iterate of all training sets
+            # iterate of all training sets
             for i,p in enumerate(train_data_x):
+
                 # output vector
                 y = self.predict(p)
 
@@ -366,10 +354,11 @@ class Network_Model:
 
                         h.set_delta(delta_h)
 
+                        # compute delta w
                         for k in neurons_k:
                             w = 0
                             if i > 0:
-                                w = learning_rate * k.output * delta_h + momentum_factor * delta_w_p[layer - 1][h.id[1] - 1][k.id[1]]
+                                w = learning_rate * k.output * delta_h + momentum_factor * delta_w_prev[layer - 1][h.id[1] - 1][k.id[1]]
                             else:
                                 w = learning_rate * k.output * delta_h
                             delta_w[0][-1].append(w)
@@ -382,8 +371,7 @@ class Network_Model:
                             for h in range(len(l.weights[0])):
                                 l.weights[k][h] = l.weights[k][h] + delta_i_t[k][h]
                 
-                delta_w_p = delta_w.copy()
-            #endregion
+                delta_w_prev = delta_w.copy()
             
             # average Error of all training sets per epoch
             Err_e_avg = sum(Err_e) / len(Err_e)
@@ -396,9 +384,7 @@ class Network_Model:
                     learning_rate *= learning_rate_p
 
             Err.append(Err_e_avg)
-
             if debug: print(f'epoch = {epoch} | error = {Err_e_avg} | learning rate = {learning_rate}')
-        #endregion
         
         return Err
 
@@ -411,6 +397,7 @@ class Network_Model:
 
     def predict(self, input: list):
         """Computes a model output based on a given input."""
+
         # write input to first layer
         if len(input) != len(self.layers[0].neurons):
             print('Number of input values does not match number of input neurons!')
