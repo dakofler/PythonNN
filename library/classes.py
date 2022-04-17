@@ -177,7 +177,7 @@ class Network_Model:
             graph.add_node(n.id)
 
         #calculate node positions
-        plot_width = 200 + len(self.layers) * 250
+        plot_width = 1500 # 200 + len(self.layers) * 250
         temp = [n.id[1] for n in neurons]
         plot_height = 200 + max(temp) * 50 - 10
 
