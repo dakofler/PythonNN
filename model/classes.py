@@ -89,7 +89,7 @@ class Neuron:
 
 
 class Layer:
-    def __init__(self, id, num_of_neurons, propagation_function, activation_function, prev_layer=None, fixed_weight=None):
+    def __init__(self, id, num_of_neurons, propagation_function, activation_function, prev_layer = None, fixed_weight = None):
         self.id = id
         self.num_of_neurons = num_of_neurons
         self.activation_function = activation_function
@@ -115,7 +115,7 @@ class Layer:
                     if fixed_weight is not None:
                         self.weights[i][j] = fixed_weight
                     else:
-                        self.weights[i][j] = (rnd.random() - 0.5) * 2
+                        self.weights[i][j] = (rnd.random() - 0.5) # initialize weights in the interal [-0.5, 0.5]
         else:
             self.weights = []
 
@@ -125,6 +125,9 @@ class Layer:
 
     def get_weights(self):
         """Returns the weights of a layer as a dataframe."""
+        if self.id == 0 :
+            print('The input layer does not have weights.')
+            return
         return pd.DataFrame(self.weights)
 
 
@@ -133,7 +136,7 @@ class Neural_Network:
         self.id = id
         self.layers = []
 
-    def add_layer(self, num_of_neurons, propagation_function = 'weighted_sum', activation_function = 'identity', fixed_weight=None):
+    def add_layer(self, num_of_neurons, propagation_function = 'weighted_sum', activation_function = 'identity', fixed_weight = None):
         """Adds a new layer to the model and fills it with neurons."""
         if num_of_neurons < 1:
             print('Number of neurons has to be larger or equal to 0!')
@@ -179,7 +182,7 @@ class Neural_Network:
         
         return output
 
-    def plot_network(self, show_nodes=True, show_edges=True):
+    def plot_network(self, show_nodes = True, show_edges = True):
         """Visualizes the network using NetworkX and Plotly"""
 
         # create list of all neurons
@@ -305,15 +308,18 @@ class Feed_Forward(Neural_Network):
         train_df_y,
         mode = 'online',
         epochs = 100,
+        max_error = 0,
         default_learning_rate = 0.5, learning_rate_p = 1, learning_rate_n = 1,
         momentum_factor = 0,
+        weight_decay_factor = 0,
         shuffle = False,
         debug = False):
         """Trains the model using normalized training data."""
 
+        if (mode not in ['online', 'offline']): return []
+
         train_data_x_orig = train_df_x.values.tolist()
         train_data_y_orig = train_df_y.values.tolist()
-
         learning_rate = default_learning_rate
 
         # iterate over epochs
@@ -390,7 +396,7 @@ class Feed_Forward(Neural_Network):
                         for k in neurons_k:
                             w = 0
                             if i > 0:
-                                w = learning_rate * k.output * delta_h + momentum_factor * delta_w_prev[layer - 1][h.id[1] - 1][k.id[1]]
+                                w = learning_rate * k.output * delta_h + momentum_factor * delta_w_prev[layer - 1][h.id[1] - 1][k.id[1]] # momentum factor should be between 0.6 and 0.9
                             else:
                                 w = learning_rate * k.output * delta_h
                             delta_w[0][-1].append(w)
@@ -417,5 +423,11 @@ class Feed_Forward(Neural_Network):
 
             Err.append(Err_e_avg)
             if debug: print(f'epoch = {epoch} | error = {Err_e_avg} | learning rate = {learning_rate}')
+
+            if Err[-1] < max_error:
+                print(f'Training finished. Max error rate of < {max_error} reached on epoch {epoch}.')
+                break
         
+        if Err[-1] >= max_error: print(f'Training finished. Max error rate of < {max_error} could not be achieved.')
+
         return Err
