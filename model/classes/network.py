@@ -176,6 +176,27 @@ class Network:
         fig = go.Figure(data=data, layout=layout)
         fig.show()
 
+    def get_error_dynamic(self, error_list, dynamic_range = 10):
+        if len(error_list) < dynamic_range: return 0
+        dynamic = 0
+        for i in range(len(error_list) - dynamic_range, len(error_list)):
+            dynamic += (error_list[i] - error_list[i - 1]) / abs(error_list[i - 1])
+        dynamic /= dynamic_range
+        return dynamic
+
+    def create_validation_list(self,
+            val_df_x,
+            val_df_y):
+            """Creates a list to validate the predictions of a model using a validation dataset as input."""
+        
+            val_data_x = val_df_x.values.tolist()
+            val_data_y = val_df_y.values.tolist()
+            result = []
+
+            for i,v in enumerate(val_data_x):
+                result.append([self.predict(v), val_data_y[i]])
+                
+            return result
 
 class Feed_Forward(Network):
     def train(self,
@@ -184,7 +205,9 @@ class Feed_Forward(Network):
         mode = 'online',
         epochs = 100,
         max_error = 0,
-        default_learning_rate = 0.5, learning_rate_p = 1, learning_rate_n = 1,
+        adaptive_learning_rate = False,
+        min_learning_rate = 0,
+        default_learning_rate = 0.5,
         momentum_factor = 0,
         weight_decay_factor = 0,
         shuffle = False,
@@ -271,7 +294,7 @@ class Feed_Forward(Network):
                         for k in neurons_k:
                             w = 0
                             if i > 0:
-                                w = learning_rate * k.output * delta_h + momentum_factor * delta_w_prev[layer - 1][h.id[1] - 1][k.id[1]] # momentum factor should be between 0.6 and 0.9
+                                w = learning_rate * k.output * delta_h + momentum_factor * delta_w_prev[layer - 1][h.id[1] - 1][k.id[1]]
                             else:
                                 w = learning_rate * k.output * delta_h
                             delta_w[0][-1].append(w)
@@ -289,20 +312,24 @@ class Feed_Forward(Network):
             # average Error of all training sets per epoch
             Err_e_avg = sum(Err_e) / len(Err_e)
 
-            # adapt learning rate based on error
-            if len(Err) >= 1:
-                if Err_e_avg > Err[-1]:
-                    learning_rate *= learning_rate_n
-                else:
-                    learning_rate *= learning_rate_p
-
+            # add average Error to list of average Errors
             Err.append(Err_e_avg)
-            if debug: print(f'epoch = {epoch} | error = {Err_e_avg} | learning rate = {learning_rate}')
+            if debug: print(f'epoch = {epoch} | average error = {Err_e_avg} | learning rate = {learning_rate}')
+
+            # adapt learning rate based on error
+            if adaptive_learning_rate:
+                if self.get_error_dynamic(Err, 10) > 0:
+                    learning_rate /= 2
 
             if Err[-1] < max_error:
                 print(f'Training finished. Max error rate of < {max_error} reached on epoch {epoch}.')
                 break
+
+            if learning_rate < min_learning_rate:
+                print(f'Training aborted. Learning rate reached < {min_learning_rate} on epoch {epoch}.')
+                break
         
-        if Err[-1] >= max_error: print(f'Training finished. Max error rate of < {max_error} could not be achieved.')
+            if epoch == epochs:
+                print(f'Training finished. Number of epochs reached.')
 
         return Err
