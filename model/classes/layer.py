@@ -1,11 +1,22 @@
 import random as rnd
 import numpy as np
 import pandas as pd
-
 from model.classes.neuron import Neuron
 
 class Layer:
-    def __init__(self, id, num_of_neurons, propagation_function, activation_function, prev_layer = None, fixed_weight = None):
+    # constructor
+    def __init__(self, id: int, num_of_neurons: int, propagation_function: str, activation_function: str, fixed_weight, prev_layer = None):
+        '''Creates a network model layer object.
+        
+        Parameters
+        ----------
+            id (int): ID of the layer.
+            num_of_neurons (int): Number of neurons that the layer should contain.
+            propagation_function (string): Propagation function that neurons of the layer use
+            activation_function (string): Actviation function that neurons of the layer use
+            fixed_weight (float | None): If `None`, weights are randomly initialized with a value between `-0.5` and `0.5` (default `None`)
+            prev_layer (model.Layer): Previous Layer. Used for the initialization of weights (default `None`)
+        '''
         self.id = id
         self.num_of_neurons = num_of_neurons
         self.activation_function = activation_function
@@ -23,7 +34,7 @@ class Layer:
             self.neurons.append(Neuron((self.id, i)))
         
         # if hidden or output layer, add weights
-        if self.id > 0:
+        if prev_layer is not None:
             self.weights = np.zeros((prev_layer.num_of_neurons + 1, self.num_of_neurons))
             
             for i in range(len(self.weights)):
@@ -35,12 +46,30 @@ class Layer:
         else:
             self.weights = []
 
-    def add_neuron(self, output):
-        """Adds a neuron to a layer."""
+    # main functions
+    def add_neuron(self):
+        '''Adds a neuron to a layer.'''
         self.neurons.append(Neuron((self.id, len(self.neurons + 1))))
 
+    def update(self, prev_layer_neurons):
+        '''Makes each neuron of the layer run it's update function.
+        
+        Parameters
+        ----------
+            prev_layer_neurons (list): List of neurons of the previous layer.
+        '''
+        if self.id == 0: return
+        for n in self.neurons:
+            n.do_update(prev_layer_neurons, self)
+
+    # other functions
     def get_weights(self):
-        """Returns the weights of a layer as a dataframe."""
+        '''Returns the weights of a layer formatted as a dataframe.
+        
+        Returns
+        ----------
+            dataframe (pandas.Dataframe): Weights of the layer
+        '''
         if self.id == 0 :
             print('The input layer does not have weights.')
             return

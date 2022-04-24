@@ -1,18 +1,28 @@
 import random as rnd
 import networkx as nx
+import pandas
 import plotly.graph_objects as go
-
+from model import helpers as hlp
 from model.classes.layer import Layer
-from model.classes.neuron import Neuron
-
 
 class Network:
-    def __init__(self, id=0):
-        self.id = id
+    # constructor
+    def __init__(self):
+        '''Creates a network model object.'''
         self.layers = []
 
-    def add_layer(self, num_of_neurons, propagation_function = 'weighted_sum', activation_function = 'identity', fixed_weight = None):
-        """Adds a new layer to the model and fills it with neurons."""
+
+    # main functions
+    def add_layer(self, num_of_neurons: int, propagation_function = 'weighted_sum', activation_function = 'identity', fixed_weight = None):
+        '''Adds a new layer to the model and fills it with neurons.
+
+        Parameters
+        ----------
+            num_of_neurons (int): Number of neurons for the layer.
+            propagation_function (string): Type of propagation function that neurons of the layer use. Options are `'weighted_sum'` (default `'weighted_sum'`).
+            activation_function (string): Type of propagation function that neurons of the layer use. Options are `'identity'`, `'relu'`, `'sigmoid'`, `'tanh'` (default `'identity'`)
+            fixed_weight (float): sets the value of all weights if the value is not `None` (default `None`)
+        '''
         if num_of_neurons < 1:
             print('Number of neurons has to be larger or equal to 0!')
             return
@@ -26,20 +36,29 @@ class Network:
             return
 
         if len(self.layers) > 0:
-            self.layers.append(Layer(len(self.layers), num_of_neurons, propagation_function, activation_function, self.layers[-1], fixed_weight))
+            self.layers.append(Layer(len(self.layers), num_of_neurons, propagation_function, activation_function, fixed_weight=fixed_weight, prev_layer=self.layers[-1]))
         else:
             self.layers.append(Layer(len(self.layers), num_of_neurons, propagation_function, activation_function, fixed_weight=fixed_weight))
 
     def update(self):
-        """Updates each neuron in the network."""
+        '''Makes each neuron of the layer run it's update function.'''
         for l in self.layers:
-            if l.id != 0:
-                for n in l.neurons:
-                    n.do_update(self.layers[l.id - 1], l)
+            if l.id == 0: continue
+            prev_neurons = self.layers[l.id - 1].neurons.copy()
+            prev_neurons.insert(0, l.bias_neuron) # add bias neuron to front of list
+            l.update(prev_neurons)
 
     def predict(self, input: list):
-        """Computes a model output based on a given input."""
-
+        '''Computes a model output based on a given input.
+        
+        Parameters
+        ----------
+            input (list): Vector (list) of input values for which a prediction is to be made.
+        
+        Returns
+        ----------
+            prediction (list): Vector (list) of predictions based on the input vector.
+        '''
         # write input to first layer
         if len(input) != len(self.layers[0].neurons):
             print('Number of input values does not match number of input neurons!')
@@ -51,15 +70,77 @@ class Network:
         
         self.update()
 
-        output = []
+        prediction = []
         for n in self.layers[-1].neurons:
-            output.append(n.output)
+            prediction.append(n.output)
         
-        return output
+        return prediction
 
-    def plot_network(self, show_nodes = True, show_edges = True):
-        """Visualizes the network using NetworkX and Plotly"""
 
+    # other functions
+    def create_validation_list(self, val_df_x, val_df_y):
+        '''Creates a list used to validate the predictions of a model using a validation dataset as input.
+        
+        Parameters
+        ----------
+            val_df_x (pandas.Dataframe): Validation input values
+            val_df_y (pandas.Dataframe): Desired outcomes
+        
+        Returns
+        ----------
+            val_list (list): List of tuples of the form (prediction by the model, desired outcome)
+        '''
+        val_data_x = val_df_x.values.tolist()
+        val_data_y = val_df_y.values.tolist()
+        val_list = []
+
+        for i,v in enumerate(val_data_x):
+            val_list.append((self.predict(v), val_data_y[i]))
+            
+        return val_list
+
+    def validate_binary(self, df_val_x_norm, df_val_y, debug = False):
+        '''Validates the quality of a model based on a normalized validation set.
+        
+        Parameters
+        ----------
+            df_val_x_norm (pandas.Dataframe): Normalized validation input values
+            df_val_y (pandas.Dataframe): Desired outcomes
+            debug (bool): If `True`, validation results are logged in detail (default `False`)
+        
+        Returns
+        ----------
+            val_list (list): List of tuples of the form (prediction by the model, desired outcome)
+        '''
+        val_list = self.create_validation_list(df_val_x_norm, df_val_y)
+        misclassifications = 0
+
+        if len(val_list[0][0]) == 1 and len(val_list[0][1]):
+            for v in val_list:
+                if len(v[0]) == 1 and len(v[1]):
+                    p = 1.0 if v[0][0] > 0.5 else 0.0
+                    if p != v[1][0]:
+                        misclassifications += 1
+                        if debug: print(f'pred {v[0][0]}={p}, correct {v[1]} => X')
+                    else:
+                        if debug: print(f'pred {v[0][0]}={p}, correct {v[1][0]} => OK')
+
+            print(f'{misclassifications} of {len(val_list)} misclassified.')
+        else:
+            print('Not implemented yet.')
+            return []
+
+        return val_list
+
+    # visualization
+    def plot_network(self, show_neurons = True, show_weights = True):
+        '''Visualizes the network using NetworkX and Plotly. Neurons are plotted as Nodes, weights are plotted as lines. A neuron's id is shown. When hovering, additional information is shown.
+        
+        Parameters
+        ----------
+            show_nodes (bool): If `True`, neurons are visualized (default `True`)
+            show_edges (bool): If `True`, weights are visualized (default `True`)
+        '''
         # create list of all neurons
         neurons = []
         for l in self.layers:
@@ -97,9 +178,9 @@ class Network:
                     for n_k in self.layers[l.id - 1].neurons:
                         graph.add_edge(n_k.id, n.id)
 
-        if (not show_nodes and not show_edges): return
+        if (not show_neurons and not show_weights): return
 
-        if (show_edges):
+        if (show_weights):
             edge_x = []
             edge_y = []
 
@@ -114,7 +195,7 @@ class Network:
                 edge_y.append(y1)
                 edge_y.append(None)
 
-        if (show_nodes):
+        if (show_neurons):
             node_x = []
             node_y = []
             node_hover_text = []
@@ -145,7 +226,7 @@ class Network:
 
         data = []
 
-        if (show_edges):
+        if (show_weights):
             edge_trace = go.Scatter(
                 x=edge_x,
                 y=edge_y,
@@ -155,7 +236,7 @@ class Network:
             )
             data.append(edge_trace)
 
-        if (show_nodes):
+        if (show_neurons):
             node_trace = go.Scatter(
                 x=node_x,
                 y=node_y,
@@ -176,44 +257,43 @@ class Network:
         fig = go.Figure(data=data, layout=layout)
         fig.show()
 
-    def get_error_dynamic(self, error_list, dynamic_range = 10):
-        if len(error_list) < dynamic_range: return 0
-        dynamic = 0
-        for i in range(len(error_list) - dynamic_range, len(error_list)):
-            dynamic += (error_list[i] - error_list[i - 1]) / abs(error_list[i - 1])
-        dynamic /= dynamic_range
-        return dynamic
-
-    def create_validation_list(self,
-            val_df_x,
-            val_df_y):
-            """Creates a list to validate the predictions of a model using a validation dataset as input."""
-        
-            val_data_x = val_df_x.values.tolist()
-            val_data_y = val_df_y.values.tolist()
-            result = []
-
-            for i,v in enumerate(val_data_x):
-                result.append([self.predict(v), val_data_y[i]])
-                
-            return result
 
 class Feed_Forward(Network):
+    # main functions
     def train(self,
-        train_df_x,
-        train_df_y,
-        mode = 'online',
-        epochs = 100,
-        max_error = 0,
-        adaptive_learning_rate = False,
-        min_learning_rate = 0,
+        train_df_x: pandas.DataFrame,
+        train_df_y: pandas.DataFrame,
+        mode: str = 'online',
+        epochs: int = 100,
+        max_error = 0.0,
+        adaptive_learning_rate: bool = False,
+        min_learning_rate = 0.0,
         default_learning_rate = 0.5,
-        momentum_factor = 0,
-        weight_decay_factor = 0,
-        shuffle = False,
-        debug = False):
-        """Trains the model using normalized training data."""
-
+        momentum_factor = 0.0,
+        weight_decay_factor = 0.0,
+        shuffle: bool = False,
+        debug: bool = False):
+        '''Trains the model using normalized training data.
+        
+        Parameters
+        ----------
+            train_df_x (pandas.Dataframe): Training set.
+            train_df_y (pandas.Dataframe): Training input.
+            mode (string): Error evaluating method to be used. Options are `'online'`, `'offline'` (default `'online'`).
+            epochs (int): Number of training iterations (default `100`).
+            max_error (float): Maximum average error per epoch. If the average error falls below this threshhold, the training is aborted (default `0.0`).
+            adaptive_learning_rate (bool): If `True`, the learning rate is adapted during the training process depending on the error dynamic (default `False`).
+            min_learning_rate (float): Minimum learning rate the model should use. If the learning rate falls below this threshhold, the training is aborted (default `0.0`).
+            default_learning_rate (float): Default learning rate the model uses to train (default `0.5`).
+            momentum_factor (float): Factor the model uses for momentum learning. If the value is 0, momentum learning is not used. The deal value should be between `0.6` and `0.9` (default `0.0`).
+            weight_decay_factor (float): Factor the model uses for weight decay. If the value is 0, momentum learning is not used. The deal value should be between `0.001` and `0.02` (default `0.0`).
+            shuffle (bool): If `True`, the training set is shuffeled for each epoch (default `False`)
+            debug (bool): If `True`, detailed information is logged during the training process (default `False`).
+        
+        Returns:
+        ----------
+            history (list): List of errors for each epoch.
+        '''
         if (mode not in ['online', 'offline']): return []
 
         train_data_x_orig = train_df_x.values.tolist()
@@ -229,7 +309,7 @@ class Feed_Forward(Network):
             # shuffle training set
             train_data_x = train_data_x_orig.copy()
 
-            if shuffle:
+            if epoch > 1 and shuffle:
                 train_data_x = train_data_x_orig.copy()
                 rnd.shuffle(train_data_x)
 
@@ -248,7 +328,7 @@ class Feed_Forward(Network):
                     E_p.append((t[j] if type(t) == list else t) - y_j)
 
                 # specific error
-                Err_p = 1/2 * sum([k*l for k,l in zip(E_p,E_p)])
+                Err_p = 0.5 * sum([k*l for k,l in zip(E_p,E_p)])
                 Err_e.append(Err_p)
 
                 # backpropagate
@@ -288,7 +368,7 @@ class Feed_Forward(Network):
                                 delta_sum += (l.delta * w_h_l)
                             delta_h = act_der * delta_sum
 
-                        h.set_delta(delta_h)
+                        h.delta = delta_h
 
                         # compute delta w
                         for k in neurons_k:
@@ -314,12 +394,17 @@ class Feed_Forward(Network):
 
             # add average Error to list of average Errors
             Err.append(Err_e_avg)
-            if debug: print(f'epoch = {epoch} | average error = {Err_e_avg} | learning rate = {learning_rate}')
 
             # adapt learning rate based on error
+            error_dynamic = 0
+
             if adaptive_learning_rate:
-                if self.get_error_dynamic(Err, 10) > 0:
+                error_dynamic = hlp.get_error_dynamic(Err, 10)
+                if  error_dynamic > 0:
                     learning_rate /= 2
+
+            if debug:
+                print(f'epoch = {epoch} | average error = {Err_e_avg} | error dynamic = {error_dynamic} | learning rate = {learning_rate}')
 
             if Err[-1] < max_error:
                 print(f'Training finished. Max error rate of < {max_error} reached on epoch {epoch}.')
