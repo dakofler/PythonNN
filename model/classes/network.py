@@ -272,7 +272,7 @@ class Feed_Forward(Network):
         momentum_factor = 0.0,
         weight_decay_factor = 0.0,
         shuffle: bool = False,
-        debug: bool = False):
+        logging: bool = False):
         '''Trains the model using normalized training data.
         
         Parameters
@@ -301,17 +301,18 @@ class Feed_Forward(Network):
         learning_rate = default_learning_rate
 
         # iterate over epochs
-        Err = []
+        Err_hist = []
         Err_e = []
+        delta_w_prev = []
+        delta_w_offline = []
+
         for epoch in range(1, epochs + 1):
             Err_e.clear()
-
-            # shuffle training set
+            delta_w_offline.clear()
             train_data_x = train_data_x_orig.copy()
-
-            if epoch > 1 and shuffle:
-                train_data_x = train_data_x_orig.copy()
-                rnd.shuffle(train_data_x)
+            
+            # shuffle training set
+            if epoch > 1 and shuffle: rnd.shuffle(train_data_x)
 
             # iterate of all training sets
             for i,p in enumerate(train_data_x):
@@ -324,8 +325,7 @@ class Feed_Forward(Network):
                 
                 # error vector
                 E_p = [] 
-                for j,y_j in enumerate(y):
-                    E_p.append((t[j] if type(t) == list else t) - y_j)
+                for j,y_j in enumerate(y): E_p.append((t[j] if type(t) == list else t) - y_j)
 
                 # specific error
                 Err_p = 0.5 * sum([k*l for k,l in zip(E_p,E_p)])
@@ -336,33 +336,25 @@ class Feed_Forward(Network):
 
                 for layer in range(len(self.layers) - 1, 0, -1):
                     is_output_layer = layer == len(self.layers) - 1
-
-                    # current layer neurons
-                    neurons_h = self.layers[layer].neurons
-
-                    # previous layer neurons
-                    neurons_k = self.layers[layer - 1].neurons.copy()
-                    neurons_k.insert(0, self.layers[layer].bias_neuron)
-
-                    # following layer neurons, weights
-                    neurons_l = None if is_output_layer else self.layers[layer + 1].neurons
-                    weights_l = None if is_output_layer else self.layers[layer + 1].weights
-                    
+                    neurons_h = self.layers[layer].neurons # current layer neurons
+                    neurons_k = self.layers[layer - 1].neurons.copy() # previous layer neurons
+                    neurons_k.insert(0, self.layers[layer].bias_neuron) # add bias neuron
+                    neurons_l = None if is_output_layer else self.layers[layer + 1].neurons # following layer neurons
+                    weights_l = None if is_output_layer else self.layers[layer + 1].weights # following layer weights
                     act_func = self.layers[layer].activation_function
                     delta_w.insert(0,[])
 
                     for h in neurons_h:
                         delta_w[0].append([])
                         act_der = h.do_activate_der(act_func)
-                        delta_h = 0
+                        delta_h = 0.0
 
                         # delta_h for output neurons
-                        if is_output_layer:
-                            delta_h = act_der * E_p[h.id[1] - 1]
+                        if is_output_layer: delta_h = act_der * E_p[h.id[1] - 1]
 
                         # delta_h for hidden neurons
                         else:
-                            delta_sum = 0
+                            delta_sum = 0.0
                             for l in neurons_l:
                                 w_h_l = weights_l[h.id[1]][l.id[1] - 1]
                                 delta_sum += (l.delta * w_h_l)
@@ -372,41 +364,52 @@ class Feed_Forward(Network):
 
                         # compute delta w
                         for k in neurons_k:
-                            w = 0
-                            if i > 0:
-                                w = learning_rate * k.output * delta_h + momentum_factor * delta_w_prev[layer - 1][h.id[1] - 1][k.id[1]]
-                            else:
-                                w = learning_rate * k.output * delta_h
+                            if delta_w_prev: w = learning_rate * k.output * delta_h + momentum_factor * delta_w_prev[layer - 1][h.id[1] - 1][k.id[1]]
+                            else: w = learning_rate * k.output * delta_h
                             delta_w[0][-1].append(w)
+  
+                # for online learning, update weights after each training set
+                if mode == 'online':
+                    for i,layer in enumerate(self.layers):
+                        if i > 0:
+                            delta_i_t = list(map(list, zip(*delta_w[i - 1])))
+                            for k in range(len(layer.weights)):
+                                for h in range(len(layer.weights[0])):
+                                    layer.weights[k][h] = layer.weights[k][h] + delta_i_t[k][h]
+                    delta_w_prev = delta_w.copy()
+                else:
+                    if i == 0: delta_w_offline = delta_w.copy()
+                    else:
+                        for d1, dwo_0 in enumerate(delta_w_offline[0]):
+                            for d2 in range(len(dwo_0)):
+                                delta_w_offline[0][d1][d2] += delta_w[0][d1][d2]
 
-                # update weights
-                for i,l in enumerate(self.layers):
-                    if i != 0:
-                        delta_i_t = list(map(list, zip(*delta_w[i - 1])))
-                        for k in range(len(l.weights)):
-                            for h in range(len(l.weights[0])):
-                                l.weights[k][h] = l.weights[k][h] + delta_i_t[k][h]
-                
-                delta_w_prev = delta_w.copy()
-            
+            # for offline learning, update weights after each epoch
+            if mode == 'offline':
+                for i, layer in enumerate(self.layers):
+                    if i > 0:
+                        delta_i_t = list(map(list, zip(*delta_w_offline[i - 1])))
+                        for k in range(len(layer.weights)):
+                            for h in range(len(layer.weights[0])):
+                                layer.weights[k][h] = layer.weights[k][h] + delta_i_t[k][h]
+                delta_w_prev = delta_w_offline.copy()
+
             # average Error of all training sets per epoch
             Err_e_avg = sum(Err_e) / len(Err_e)
 
             # add average Error to list of average Errors
-            Err.append(Err_e_avg)
+            Err_hist.append(Err_e_avg)
 
             # adapt learning rate based on error
-            error_dynamic = 0
-
+            error_dynamic = 0.0
             if adaptive_learning_rate:
-                error_dynamic = hlp.get_error_dynamic(Err, 10)
-                if  error_dynamic > 0:
-                    learning_rate /= 2
+                error_dynamic = hlp.get_error_dynamic(Err_hist, 10)
+                if  error_dynamic > 0.0: learning_rate /= 2.0
 
-            if debug:
+            if logging:
                 print(f'epoch = {epoch} | average error = {Err_e_avg} | error dynamic = {error_dynamic} | learning rate = {learning_rate}')
 
-            if Err[-1] < max_error:
+            if Err_hist[-1] < max_error:
                 print(f'Training finished. Max error rate of < {max_error} reached on epoch {epoch}.')
                 break
 
@@ -417,4 +420,4 @@ class Feed_Forward(Network):
             if epoch == epochs:
                 print(f'Training finished. Number of epochs reached.')
 
-        return Err
+        return Err_hist
