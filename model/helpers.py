@@ -161,7 +161,7 @@ def activate_relu_der(value):
     ----------
         result (float): Result of the calculation
     '''
-    return 0.0 + 0.1 if value < 0.0 else 1.0
+    return 0.0 if value < 0.0 else 1.0
     
 def activate_sigmoid_der(value):
     '''Computes the result for a given value using the first derivative of the sigmoid function. A flatpoint elimination constant of 0.1 is used.
@@ -179,7 +179,7 @@ def activate_sigmoid_der(value):
         Sigmoid derivative https://towardsdatascience.com/derivative-of-the-sigmoid-function-536880cf918e
     '''
     sigm = 1.0 / (1.0 + math.exp(-value))
-    return sigm * (1.0 - sigm) + 0.1
+    return sigm * (1.0 - sigm)
 
 def activate_tanh_der(value):
     '''Computes the result for a given value using the first derivative of the hyperbolic tangent function. A flatpoint elimination constant of 0.1 is used.
@@ -196,7 +196,7 @@ def activate_tanh_der(value):
     ----------
         Hyperbolic tangent derivative https://socratic.org/questions/what-is-the-derivative-of-tanh-x
     '''
-    return 1.0 - math.tanh(value) *  math.tanh(value) + 0.1
+    return 1.0 - math.tanh(value) *  math.tanh(value)
 
 
 # visualization

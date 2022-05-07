@@ -270,6 +270,7 @@ class Feed_Forward(Network):
         min_learning_rate = 0.0,
         default_learning_rate = 0.5,
         momentum_factor = 0.0,
+        flatspot_elim_value = 0.1,
         weight_decay_factor = 0.0,
         shuffle: bool = False,
         logging: bool = False):
@@ -316,20 +317,15 @@ class Feed_Forward(Network):
 
             # iterate of all training sets
             for i,p in enumerate(train_data_x):
-
-                # output vector
-                y = self.predict(p)
-
-                # training input
-                t = train_data_y_orig[train_data_x_orig.index(p)]
+                y = self.predict(p) # output vector
+                t = train_data_y_orig[train_data_x_orig.index(p)] # training input
                 
                 # error vector
                 E_p = [] 
                 for j,y_j in enumerate(y): E_p.append((t[j] if type(t) == list else t) - y_j)
 
                 # specific error
-                Err_p = 0.5 * sum([k*l for k,l in zip(E_p,E_p)])
-                Err_e.append(Err_p)
+                Err_e.append(0.5 * sum([k*l for k,l in zip(E_p,E_p)]))
 
                 # backpropagate
                 delta_w = []
@@ -346,7 +342,7 @@ class Feed_Forward(Network):
 
                     for h in neurons_h:
                         delta_w[0].append([])
-                        act_der = h.do_activate_der(act_func)
+                        act_der = h.do_activate_der(act_func) + flatspot_elim_value
                         delta_h = 0.0
 
                         # delta_h for output neurons
