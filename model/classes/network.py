@@ -306,11 +306,11 @@ class Feed_Forward(Network):
         train_data_y_orig = train_df_y.values.tolist()
         learning_rate = default_learning_rate
 
-        eta_0 = 0.1
-        eta_max = 50
-        eta_min = 0.000001
-        eta_p = 1.2
-        eta_n = 0.5
+        # eta_0 = 0.1
+        # eta_max = 50
+        # eta_min = 0.000001
+        # eta_p = 1.2
+        # eta_n = 0.5
 
         Err_hist = []
         delta_w_prev = []
@@ -329,11 +329,14 @@ class Feed_Forward(Network):
             # iterate of all training sets
             for p_index, p in enumerate(train_data_x):
                 y = self.predict(p) # output vector
-                t_j = train_data_y_orig[train_data_x_orig.index(p)] # training input
+                t = train_data_y_orig[train_data_x_orig.index(p)] # training input
                 
                 # error vector
-                E_p = [] 
-                for y_index, y_j in enumerate(y): E_p.append((t_j[y_index] if type(t_j) == list else t_j) - y_j)
+                E_p = []               
+                for y_index, y_j in enumerate(y):
+                    t_j = t[y_index] if type(t) == list else t
+                    E_p_y = t_j - y_j
+                    E_p.append(E_p_y)
 
                 # specific error
                 Err_e.append(0.5 * sum([e * e for e in E_p]))
@@ -344,8 +347,11 @@ class Feed_Forward(Network):
                     is_output_layer = layer_index == len(self.layers) - 1
 
                     neurons_h = self.layers[layer_index].neurons # current layer neurons
+                    weights_h = self.layers[layer_index].weights # current layer weights
+
                     neurons_k = self.layers[layer_index - 1].neurons.copy() # previous layer neurons
                     neurons_k.insert(0, self.layers[layer_index].bias_neuron) # add bias neuron of current layer to previous layer
+
                     neurons_l = None if is_output_layer else self.layers[layer_index + 1].neurons # following layer neurons
                     weights_l = None if is_output_layer else self.layers[layer_index + 1].weights # following layer weights
 
@@ -376,42 +382,43 @@ class Feed_Forward(Network):
 
                         if not rprop:
                             for k_index, k in enumerate(neurons_k):
-                                if delta_w_prev: w = learning_rate * k.output * delta_h + momentum_factor * delta_w_prev[layer_index - 1][h_index][k_index]
-                                else: w = learning_rate * k.output * delta_h
-                                delta_w[0][-1].append(w)
-                        else:
-                            if epoch == 1:
-                                eta_prev[0].append([])
-                                g_prev[0].append([])
-                                g_k_h_prev = 0 
-                                eta_k_h_prev = eta_0
-                            else:
-                                g_k_h_prev = g_prev[layer_index - 1][h_index][k_index]
-                                eta_k_h_prev = eta_prev[layer_index - 1][h_index][k_index]                           
+                                if delta_w_prev: delta_w_k_h = learning_rate * k.output * delta_h + momentum_factor * delta_w_prev[layer_index - 1][h_index][k_index]
+                                else: delta_w_k_h = learning_rate * k.output * delta_h
+                                delta_w_k_h_prime = delta_w_k_h - learning_rate * weight_decay_factor * weights_h[k_index][h_index] # weight decay
+                                delta_w[0][-1].append(delta_w_k_h_prime)
+                        # else:
+                        #     if epoch == 1:
+                        #         eta_prev[0].append([])
+                        #         g_prev[0].append([])
+                        #         g_k_h_prev = 0 
+                        #         eta_k_h_prev = eta_0
+                        #     else:
+                        #         g_k_h_prev = g_prev[layer_index - 1][h_index][k_index]
+                        #         eta_k_h_prev = eta_prev[layer_index - 1][h_index][k_index]                           
 
-                            for k_index, k in enumerate(neurons_k):
-                                g = k.output * delta_h
-                                if g_k_h_prev * g > 0: eta_k_h = eta_p * eta_k_h_prev
-                                elif g_k_h_prev * g < 0: eta_k_h = eta_n * eta_k_h_prev
-                                else: eta_k_h = eta_k_h_prev
+                        #     for k_index, k in enumerate(neurons_k):
+                        #         g = k.output * delta_h
+                        #         if g_k_h_prev * g > 0: eta_k_h = eta_p * eta_k_h_prev
+                        #         elif g_k_h_prev * g < 0: eta_k_h = eta_n * eta_k_h_prev
+                        #         else: eta_k_h = eta_k_h_prev
 
-                                if eta_k_h > eta_max: eta_k_h = eta_max
-                                if eta_k_h < eta_min: eta_k_h = eta_min
+                        #         if eta_k_h > eta_max: eta_k_h = eta_max
+                        #         if eta_k_h < eta_min: eta_k_h = eta_min
 
-                                if g > 0: rprop_sign = 1.0
-                                elif g < 0: rprop_sign = -1.0
-                                else: rprop_sign = 0
+                        #         if g > 0: rprop_sign = 1.0
+                        #         elif g < 0: rprop_sign = -1.0
+                        #         else: rprop_sign = 0
 
-                                if epoch == 1:
-                                    eta_prev[0][-1].append(eta_k_h)
-                                    g_prev[0][-1].append(g)
-                                else:
-                                    g_prev[layer_index - 1][h_index][k_index] = g
-                                    eta_prev[layer_index - 1][h_index][k_index] = eta_k_h
+                        #         if epoch == 1:
+                        #             eta_prev[0][-1].append(eta_k_h)
+                        #             g_prev[0][-1].append(g)
+                        #         else:
+                        #             g_prev[layer_index - 1][h_index][k_index] = g
+                        #             eta_prev[layer_index - 1][h_index][k_index] = eta_k_h
                                 
-                                w = rprop_sign * eta_k_h
+                        #         w = rprop_sign * eta_k_h
 
-                                delta_w[0][-1].append(w)
+                        #         delta_w[0][-1].append(w)
                 
                 # process weight changes
                 if online:
