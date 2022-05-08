@@ -306,21 +306,19 @@ class Feed_Forward(Network):
         train_data_y_orig = train_df_y.values.tolist()
         learning_rate = default_learning_rate
 
-        # eta_0 = 0.1
-        # eta_max = 50
-        # eta_min = 0.000001
-        # eta_p = 1.2
-        # eta_n = 0.5
+        eta_0 = 0.1
+        eta_max = 50
+        eta_min = 0.000001
+        eta_p = 1.2
+        eta_n = 0.5
 
         Err_hist = []
         delta_w_prev = []
-        if rprop:
-            eta_prev = []
-            g_prev = []
+        grad_prev = []
 
         # iterate over epochs
         for epoch in range(1, epochs + 1):
-            Err_e = []
+            Err_e = 0.0
             train_data_x = train_data_x_orig.copy()
             
             # shuffle training set
@@ -339,10 +337,13 @@ class Feed_Forward(Network):
                     E_p.append(E_p_y)
 
                 # specific error
-                Err_e.append(0.5 * sum([e * e for e in E_p]))
+                Err = 0.5 * sum([e * e for e in E_p])
+                Err_e += Err / len(train_data_x)
 
                 # compute weight changes
                 delta_w = []
+                grad = []
+                
                 for layer_index in range(len(self.layers) - 1, 0, -1):
                     is_output_layer = layer_index == len(self.layers) - 1
 
@@ -357,90 +358,56 @@ class Feed_Forward(Network):
 
                     act_func = self.layers[layer_index].activation_function
                     delta_w.insert(0, [])
-                    if rprop and epoch == 1:
-                        eta_prev.insert(0, [])
-                        g_prev.insert(0, [])
+                    grad.insert(0, [])
 
                     for h_index, h in enumerate(neurons_h):
                         act_der = h.do_activate_der(act_func) + flatspot_elim_value
 
-                        # delta_h for output neurons
+                        # compute delta_h
                         if is_output_layer: delta_h = act_der * E_p[h_index]
-
-                        # delta_h for hidden neurons
                         else:
                             delta_sum = 0.0
                             for l_index, l in enumerate(neurons_l):
                                 w_h_l = weights_l[h_index + 1][l_index]
                                 delta_sum += (l.delta * w_h_l)
                             delta_h = act_der * delta_sum
-
                         h.delta = delta_h
 
                         # compute delta w
                         delta_w[0].append([])
-
+                        grad[0].append([])
+                        
                         if not rprop:
                             for k_index, k in enumerate(neurons_k):
                                 if delta_w_prev: delta_w_k_h = learning_rate * k.output * delta_h + momentum_factor * delta_w_prev[layer_index - 1][h_index][k_index]
                                 else: delta_w_k_h = learning_rate * k.output * delta_h
                                 delta_w_k_h_prime = delta_w_k_h - learning_rate * weight_decay_factor * weights_h[k_index][h_index] # weight decay
                                 delta_w[0][-1].append(delta_w_k_h_prime)
-                        # else:
-                        #     if epoch == 1:
-                        #         eta_prev[0].append([])
-                        #         g_prev[0].append([])
-                        #         g_k_h_prev = 0 
-                        #         eta_k_h_prev = eta_0
-                        #     else:
-                        #         g_k_h_prev = g_prev[layer_index - 1][h_index][k_index]
-                        #         eta_k_h_prev = eta_prev[layer_index - 1][h_index][k_index]                           
-
-                        #     for k_index, k in enumerate(neurons_k):
-                        #         g = k.output * delta_h
-                        #         if g_k_h_prev * g > 0: eta_k_h = eta_p * eta_k_h_prev
-                        #         elif g_k_h_prev * g < 0: eta_k_h = eta_n * eta_k_h_prev
-                        #         else: eta_k_h = eta_k_h_prev
-
-                        #         if eta_k_h > eta_max: eta_k_h = eta_max
-                        #         if eta_k_h < eta_min: eta_k_h = eta_min
-
-                        #         if g > 0: rprop_sign = 1.0
-                        #         elif g < 0: rprop_sign = -1.0
-                        #         else: rprop_sign = 0
-
-                        #         if epoch == 1:
-                        #             eta_prev[0][-1].append(eta_k_h)
-                        #             g_prev[0][-1].append(g)
-                        #         else:
-                        #             g_prev[layer_index - 1][h_index][k_index] = g
-                        #             eta_prev[layer_index - 1][h_index][k_index] = eta_k_h
-                                
-                        #         w = rprop_sign * eta_k_h
-
-                        #         delta_w[0][-1].append(w)
+                        else:
+                            for k_index, k in enumerate(neurons_k):
+                                if epoch == 1: grad[0][-1].append(k.output * delta_h / len(train_data_x))
+                                else: grad[layer_index - 1][h_index][k_index] += k.output * delta_h / len(train_data_x)          
                 
-                # process weight changes
-                if online:
-                    # if training online, update weights
-                    for layer_index, l in enumerate(self.layers):
-                        if layer_index > 0:
-                            delta_w_t = list(map(list, zip(*delta_w[layer_index - 1]))) # transpose weight matrix
-                            for weight_r in range(len(l.weights)):
-                                for weight_c in range(len(l.weights[0])):
-                                    l.weights[weight_r][weight_c] += delta_w_t[weight_r][weight_c]
-                    delta_w_prev = delta_w.copy()
-                else:
-                    # if training offline, add weight change
-                    if p_index == 0: delta_w_o = delta_w.copy()
-                    else:
-                        for layer_index, l in enumerate(delta_w_o):
-                            for n_index, n in enumerate(l):
-                                for w_index in range(len(n)):
-                                    delta_w_o[layer_index][n_index][w_index] += delta_w[layer_index][n_index][w_index] / len(train_data_x)
+                if not rprop:
+                    # process weight changes
+                    if online: # if training online, update weights
+                        for layer_index, l in enumerate(self.layers):
+                            if layer_index > 0:
+                                delta_w_t = list(map(list, zip(*delta_w[layer_index - 1]))) # transpose weight matrix
+                                for weight_r in range(len(l.weights)):
+                                    for weight_c in range(len(l.weights[0])):
+                                        l.weights[weight_r][weight_c] += delta_w_t[weight_r][weight_c]
+                        delta_w_prev = delta_w.copy()
+                    else: # if training offline, add weight change
+                        if p_index == 0: delta_w_o = delta_w.copy()
+                        else:
+                            for layer_index, l in enumerate(delta_w_o):
+                                for n_index, n in enumerate(l):
+                                    for w_index in range(len(n)):
+                                        delta_w_o[layer_index][n_index][w_index] += delta_w[layer_index][n_index][w_index] / len(train_data_x)
 
             # for offline learning, update weights after each epoch
-            if not online:
+            if not online and not rprop:
                 for layer_index, l in enumerate(self.layers):
                     if layer_index > 0:
                         delta_w_t = list(map(list, zip(*delta_w_o[layer_index - 1]))) # transpose weight matrix
@@ -448,12 +415,30 @@ class Feed_Forward(Network):
                             for weight_c in range(len(l.weights[0])):
                                 l.weights[weight_r][weight_c] += delta_w_t[weight_r][weight_c]
                 delta_w_prev = delta_w_o.copy()
+            elif rprop:
+                for layer_index, l in enumerate(self.layers):
+                    if layer_index > 0:
+                        grad_t = list(map(list, zip(*grad[layer_index - 1]))) # transpose gradient matrix
+                        if epoch > 1: grad_prev_t = list(map(list, zip(*grad_prev[layer_index - 1]))) # transpose gradient matrix
+                        for weight_r in range(len(l.weights)):
+                            for weight_c in range(len(l.weights[0])):
+                                # combute eta_k_h
+                                if epoch == 1:
+                                    eta_k_h = eta_0
+                                else:
+                                    if grad_t[weight_r][weight_c] * grad_prev_t[weight_r][weight_c] < 0.0: eta_k_h = eta_n * eta_prev #ToDo
+                                    elif grad_t[weight_r][weight_c] * grad_prev_t[weight_r][weight_c] > 0.0: eta_k_h = eta_p * eta_prev #ToDo
+                                    else: eta_k_h = eta_prev #ToDo
+                                
+                                # Append eta to list
+                                
+                                # combute delta_w_k_h
+                                if grad_t[weight_r][weight_c] > 0.0: delta_w_k_h = -eta_k_h
+                                elif grad_t[weight_r][weight_c] < 0.0: delta_w_k_h = eta_k_h
+                                else: delta_w_k_h = 0.0
 
-            # average Error of all training sets per epoch
-            Err_e_avg = sum(Err_e) / len(Err_e)
-
-            # add average Error to list of average Errors
-            Err_hist.append(Err_e_avg)
+            # add error of epoch to list
+            Err_hist.append(Err_e)
 
             # adapt learning rate based on error
             error_dynamic = 0.0
@@ -462,7 +447,7 @@ class Feed_Forward(Network):
                 if  error_dynamic > 0.0: learning_rate /= 2.0
 
             if logging:
-                print(f'epoch = {epoch} | average error = {Err_e_avg} | error dynamic = {error_dynamic} | learning rate = {learning_rate}')
+                print(f'epoch = {epoch} | epoch error = {Err_e} | error dynamic = {error_dynamic} | learning rate = {learning_rate}')
 
             if Err_hist[-1] < max_error:
                 print(f'Training finished. Max error rate of < {max_error} reached on epoch {epoch}.')
