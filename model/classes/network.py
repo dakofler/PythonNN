@@ -308,8 +308,8 @@ class Feed_Forward(Network):
 
         eta_0 = 0.1
         eta_max = 50
-        eta_min = 0.000001
-        eta_p = 1.2
+        eta_min = 0.1
+        eta_p = 1.1
         eta_n = 0.5
 
         Err_hist = []
@@ -342,7 +342,7 @@ class Feed_Forward(Network):
 
                 # specific error
                 Err = 0.5 * sum([e * e for e in E_p])
-                Err_e += Err / len(train_data_x)
+                Err_e += (Err / len(train_data_x))
 
                 # compute weight changes
                 delta_w = []
@@ -376,23 +376,22 @@ class Feed_Forward(Network):
                             delta_h = act_der * delta_sum
                         h.delta = delta_h
 
-                        # compute delta w
                         delta_w[0].append([])
                         if p_index == 0: grad[0].append([])
                         
                         if not rprop:
+                            # compute delta w
                             for k_index, k in enumerate(neurons_k):
                                 if delta_w_prev: delta_w_k_h = learning_rate * k.output * delta_h + momentum_factor * delta_w_prev[layer_index - 1][h_index][k_index]
                                 else: delta_w_k_h = learning_rate * k.output * delta_h
                                 delta_w_k_h_prime = delta_w_k_h - learning_rate * weight_decay_factor * weights_h[k_index][h_index] # weight decay
                                 delta_w[0][-1].append(delta_w_k_h_prime)
                         else:
+                            # compute g
                             for k_index, k in enumerate(neurons_k):
-                                g = k.output * delta_h / len(train_data_x)
-                                if p_index == 0: grad[0][-1].append(g)
-                                else: grad[layer_index - 1][h_index][k_index] += g
-                
-                grad_T = grad.copy()
+                                g_k_h = k.output * delta_h / len(train_data_x)
+                                if p_index == 0: grad[0][-1].append(g_k_h)
+                                else: grad[layer_index - 1][h_index][k_index] += g_k_h
 
                 # process weight changes
                 if not rprop:
@@ -427,6 +426,7 @@ class Feed_Forward(Network):
                         grad_t = list(map(list, zip(*grad[layer_index - 1]))) # transpose gradient matrix
                         eta.append([])
                         w.append([])
+
                         if epoch > 1: grad_prev_t = list(map(list, zip(*grad_prev[layer_index - 1]))) # transpose previous gradient matrix
 
                         for weight_r in range(len(l.weights)):
@@ -445,8 +445,8 @@ class Feed_Forward(Network):
                                 if eta_k_h > eta_max: eta_k_h = eta_max
 
                                 # compute delta_w_k_h
-                                if grad_t[weight_r][weight_c] > 0.0: delta_w_k_h = eta_k_h
-                                elif grad_t[weight_r][weight_c] < 0.0: delta_w_k_h = -eta_k_h
+                                if grad_t[weight_r][weight_c] > 0.0: delta_w_k_h = -eta_k_h
+                                elif grad_t[weight_r][weight_c] < 0.0: delta_w_k_h = eta_k_h
                                 else: delta_w_k_h = 0.0
 
                                 # Save eta to list

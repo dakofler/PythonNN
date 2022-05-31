@@ -8,6 +8,7 @@ bin-release/
 testnotebooks
 __pycache__
 test.html
+test.ipynb
 
 # Executables
 *.swf
